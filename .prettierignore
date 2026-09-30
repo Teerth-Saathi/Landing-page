@@ -1,0 +1,7 @@
+.next
+.tools
+node_modules
+package-lock.json
+test-results
+public/images
+next-env.d.ts
