@@ -89,15 +89,6 @@ export async function POST(request: Request) {
       source: 'website',
     });
     if (error) {
-      if (error.code === '23505')
-        return NextResponse.json(
-          {
-            ok: false,
-            message:
-              'You have already registered interest in this destination. For changes or questions, please contact us on WhatsApp.',
-          },
-          { status: 409 },
-        );
       return NextResponse.json(
         {
           ok: false,

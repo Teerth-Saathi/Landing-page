@@ -25,8 +25,8 @@ one. If this migration has not been applied, Supabase rejects the insert.
 
    `is_nullable` must be `YES`.
 
-4. Submit the form again. The API should return `201` after saving. A previously
-   registered phone returns `409`; use WhatsApp for updates to an existing lead.
+4. Apply the repeat-submission migration below, then submit the form again.
+   The API should return `201` after saving.
 
 This change preserves existing leads and their historical budget values. It is
 safe to run again. No app restart or redeployment is needed for this database
@@ -38,6 +38,21 @@ secret keys or complete lead records in debugging screenshots.
 
 New submissions use the founding journey (Mathura–Vrindavan) on the server and
 do not collect a destination or budget. Historical values remain available.
+
+## Allow repeat interest submissions
+
+Run [003_allow_repeat_interest.sql](./003_allow_repeat_interest.sql) in the same
+SQL editor:
+
+```sql
+alter table public.leads
+  drop constraint if exists leads_phone_destination_key;
+```
+
+This removes the phone/destination uniqueness restriction. Each submission saves
+a new lead, even when that number has already registered for the journey.
+Existing leads are preserved. Apply migrations in order for a new database too.
+Deploy the updated API to remove the previous duplicate-registration response.
 
 Phone numbers are normalized to 10 Indian mobile digits. This validates format;
 it does not verify ownership or whether a number is reachable. The form uses
