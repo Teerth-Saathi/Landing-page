@@ -9,13 +9,6 @@ export const options = {
     'Friends',
     'Other',
   ],
-  destination: [
-    'Mathura–Vrindavan',
-    'Ayodhya',
-    'Haridwar–Rishikesh',
-    'Varanasi',
-  ],
-  budget: ['₹3,000–₹4,000', '₹4,000–₹5,000', '₹5,000–₹6,000', '₹6,000+'],
   priorities: [
     'Comfortable travel',
     'Good hotel',
@@ -29,26 +22,37 @@ export const options = {
   interest: ['Definitely interested', 'Maybe interested', 'Just exploring'],
 } as const;
 export const leadSchema = z.object({
-  name: z.string().trim().min(2, 'Please enter your full name.').max(100),
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Please enter your full name.')
+    .max(100)
+    .regex(
+      /^[\p{L}\p{M}][\p{L}\p{M} .’'-]*$/u,
+      'Enter a name using letters, spaces, apostrophes or hyphens.',
+    ),
   phone: z
     .string()
     .trim()
+    .max(20, 'Enter a valid mobile number.')
     .regex(
-      /^(?:\+91[\s-]?|91[\s-]?)?[6-9][0-9\s-]{9,13}$/,
-      'Enter a valid Indian mobile number.',
+      /^(?:\+91[ -]?|91[ -]?)?[6-9][0-9 -]{9,13}$/,
+      'Enter a valid mobile number.',
     )
     .transform((v) =>
-      v.replace(/[\s-]/g, '').replace(/^(?:\+91|91)(?=\d{10}$)/, ''),
+      v.replace(/[ -]/g, '').replace(/^(?:\+91|91)(?=\d{10}$)/, ''),
     )
     .refine(
       (v) => /^[6-9]\d{9}$/.test(v),
       'Enter a valid 10-digit mobile number.',
+    )
+    .refine(
+      (v) => !/^(\d)\1{9}$/.test(v),
+      'Enter a valid mobile number, not repeated digits.',
     ),
   city: z.string().trim().min(2, 'Please enter your city or area.').max(100),
   travellers: z.enum(options.travellers),
   travellingWith: z.enum(options.travellingWith),
-  destination: z.enum(options.destination),
-  budget: z.enum(options.budget),
   priorities: z
     .array(z.enum(options.priorities))
     .min(1, 'Choose at least one priority.')

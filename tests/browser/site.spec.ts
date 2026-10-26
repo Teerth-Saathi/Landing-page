@@ -1,5 +1,61 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+test('form cannot navigate or expose fields in a native GET when scripts fail', async ({
+  browser,
+  baseURL,
+}) => {
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    baseURL,
+  });
+  const page = await context.newPage();
+  await page.goto('/#interest');
+  await expect(
+    page.getByRole('button', { name: 'Loading form…', includeHidden: true }),
+  ).toBeDisabled();
+  await expect(page.locator('form')).toHaveAttribute('inert', '');
+  await page
+    .locator('button[type="submit"]')
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(page).toHaveURL(`${baseURL}/#interest`);
+  await context.close();
+});
+test('validates while typing and restricts phone input and paste', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const name = page.getByLabel('Full Name');
+  await name.fill('1');
+  await expect(page.locator('#name-error')).toBeVisible();
+  await name.fill('Rajat');
+  await expect(page.locator('#name-error')).toHaveCount(0);
+  const phone = page.getByLabel('Phone / WhatsApp Number');
+  await phone.pressSequentially('abc9!8@7');
+  await expect(phone).toHaveValue('987');
+  await expect(page.locator('#phone-error')).toBeVisible();
+  await phone.pressSequentially('6543210');
+  await expect(phone).toHaveValue('9876543210');
+  await expect(page.locator('#phone-error')).toHaveCount(0);
+  await phone.pressSequentially('123');
+  await expect(phone).toHaveValue('9876543210');
+  await phone.fill('');
+  await phone.evaluate((field) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData('text', '+91 98765-43210');
+    field.dispatchEvent(
+      new ClipboardEvent('paste', {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+  await expect(phone).toHaveValue('9876543210');
+  await expect(page.locator('#phone-error')).toHaveCount(0);
+  await phone.fill('9999999999');
+  await expect(page.locator('#phone-error')).toBeVisible();
+  await expect(page.locator('#city-error')).toHaveCount(0);
+});
 for (const width of [360, 390, 768, 1024, 1440]) {
   test(`responsive layout and accessibility at ${width}px`, async ({
     page,
@@ -37,7 +93,6 @@ async function fillForm(page: import('@playwright/test').Page) {
   await page.getByLabel('City / Area').fill('Delhi');
   await page.getByLabel('Number of Travellers').selectOption('2');
   await page.getByLabel('Travelling With').selectOption('Family');
-  await page.getByLabel('Comfortable Budget').selectOption('₹4,000–₹5,000');
   await page.getByLabel('Comfortable travel', { exact: true }).check();
   await page.getByLabel('Interest Level').selectOption('Definitely interested');
   await page.getByRole('checkbox', { name: /I agree to be contacted/ }).check();
@@ -62,6 +117,18 @@ test('mobile menu, FAQs and journey navigation', async ({ page }) => {
   await page.getByRole('link', { name: 'Explore the journey' }).click();
   await expect(page).toHaveURL(/journeys\/mathura-vrindavan/);
 });
+test('invalid phone stays on form and removed fields are absent', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await fillForm(page);
+  await expect(page.getByLabel('Preferred Destination')).toHaveCount(0);
+  await expect(page.getByLabel('Comfortable Budget')).toHaveCount(0);
+  await page.getByLabel('Phone / WhatsApp Number').fill('9999999999');
+  await page.getByRole('button', { name: 'Join the Priority List' }).click();
+  await expect(page.locator('#phone-error')).toBeVisible();
+  await expect(page.getByLabel('Phone / WhatsApp Number')).toBeFocused();
+});
 test('successful submission renders only after server confirms saving (mock)', async ({
   page,
 }) => {
@@ -81,6 +148,8 @@ test('successful submission renders only after server confirms saving (mock)', a
   await expect(
     page.getByRole('heading', { name: 'You’re on the list.' }),
   ).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
+  expect(new URL(page.url()).search).toBe('');
 });
 test('unavailable storage keeps user data and offers WhatsApp (mock)', async ({
   page,
@@ -110,6 +179,16 @@ test('unavailable storage keeps user data and offers WhatsApp (mock)', async ({
 test('API rejects malformed, unconsented and cross-origin requests', async ({
   request,
 }) => {
+  expect(
+    (await request.post('/api/leads', { data: 'plain text' })).status(),
+  ).toBe(415);
+  expect(
+    (
+      await request.post('/api/leads', {
+        data: { message: 'a'.repeat(12_001) },
+      })
+    ).status(),
+  ).toBe(413);
   expect((await request.post('/api/leads', { data: {} })).status()).toBe(400);
   expect(
     (

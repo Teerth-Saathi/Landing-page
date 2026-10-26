@@ -3,20 +3,44 @@ import { createClient } from '@supabase/supabase-js';
 import { leadSchema } from '@/lib/lead-schema';
 
 export async function POST(request: Request) {
+  if (
+    request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !==
+    'application/json'
+  )
+    return NextResponse.json(
+      { ok: false, message: 'Please submit a JSON form.' },
+      { status: 415 },
+    );
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin)
+  if (
+    request.headers.get('sec-fetch-site') === 'cross-site' ||
+    (origin && origin !== new URL(request.url).origin)
+  )
     return NextResponse.json(
       { ok: false, message: 'Please submit the form from our website.' },
       { status: 403 },
     );
   let input: unknown;
   try {
-    const body = await request.text();
-    if (body.length > 12_000)
-      return NextResponse.json(
-        { ok: false, message: 'Your submission is too large.' },
-        { status: 413 },
-      );
+    const reader = request.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > 12_000) {
+          await reader.cancel();
+          return NextResponse.json(
+            { ok: false, message: 'Your submission is too large.' },
+            { status: 413 },
+          );
+        }
+        chunks.push(value);
+      }
+    }
+    const body = Buffer.concat(chunks).toString('utf8');
     input = JSON.parse(body);
   } catch {
     return NextResponse.json(
@@ -56,8 +80,7 @@ export async function POST(request: Request) {
       city: lead.city,
       travellers: lead.travellers,
       travelling_with: lead.travellingWith,
-      destination: lead.destination,
-      budget: lead.budget,
+      destination: 'Mathura–Vrindavan',
       priorities: lead.priorities,
       interest_level: lead.interest,
       message: lead.message,

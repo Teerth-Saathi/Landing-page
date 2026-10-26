@@ -1,7 +1,10 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/browser',
-  use: { baseURL: 'http://localhost:3000', browserName: 'chromium' },
+  use: {
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
+    browserName: 'chromium',
+  },
   workers: 1,
   reporter: 'list',
 });

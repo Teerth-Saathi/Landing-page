@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import {
   ArrowUpRight,
@@ -12,24 +12,51 @@ import { leadSchema, options } from '@/lib/lead-schema';
 import type { LeadResult } from '@/types/lead';
 import { WhatsAppLink } from '../ui/whatsapp-link';
 
+function formInput(form: HTMLFormElement) {
+  const data = new FormData(form);
+  return {
+    ...Object.fromEntries(data),
+    priorities: data.getAll('priorities'),
+    consent: data.get('consent') === 'on',
+  };
+}
+
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
 export function InterestForm() {
+  // Native form submission would reload the page before React attaches handlers.
+  const ready = useSyncExternalStore(
+    subscribeToHydration,
+    clientReady,
+    serverReady,
+  );
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<LeadResult | null>(null);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const statusRef = useRef<HTMLDivElement>(null);
+  function validateField(form: HTMLFormElement, name: string) {
+    const parsed = leadSchema.safeParse(formInput(form));
+    const fieldErrors: Record<string, string[] | undefined> = parsed.success
+      ? {}
+      : parsed.error.flatten().fieldErrors;
+    setErrors((previous) => {
+      const next = { ...previous };
+      if (fieldErrors[name]) next[name] = fieldErrors[name];
+      else delete next[name];
+      return next;
+    });
+  }
   function showResult(value: LeadResult) {
     setResult(value);
     requestAnimationFrame(() => statusRef.current?.focus());
   }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     const form = event.currentTarget;
-    const data = new FormData(form);
-    const input = {
-      ...Object.fromEntries(data),
-      priorities: data.getAll('priorities'),
-      consent: data.get('consent') === 'on',
-    };
+    const input = formInput(form);
     setErrors({});
     setResult(null);
     const parsed = leadSchema.safeParse(input);
@@ -62,7 +89,7 @@ export function InterestForm() {
   }
   function error(name: string) {
     return errors[name] ? (
-      <span className="field-error" id={`${name}-error`}>
+      <span className="field-error" id={`${name}-error`} aria-live="polite">
         {errors[name][0]}
       </span>
     ) : null;
@@ -70,7 +97,7 @@ export function InterestForm() {
   function select(
     name: keyof Pick<
       typeof options,
-      'travellers' | 'travellingWith' | 'destination' | 'budget' | 'interest'
+      'travellers' | 'travellingWith' | 'interest'
     >,
     label: string,
   ) {
@@ -83,7 +110,7 @@ export function InterestForm() {
           id={`lead-${name}`}
           name={name}
           required
-          defaultValue={name === 'destination' ? 'Mathura–Vrindavan' : ''}
+          defaultValue=""
           aria-invalid={!!errors[name]}
           aria-describedby={errors[name] ? `${name}-error` : undefined}
         >
@@ -155,7 +182,33 @@ export function InterestForm() {
               <WhatsAppLink />
             </div>
           ) : (
-            <form onSubmit={submit} aria-label="Register your interest">
+            <form
+              inert={!ready}
+              noValidate
+              onSubmit={submit}
+              onChange={(event) => {
+                const field = event.target;
+                if (
+                  field instanceof HTMLInputElement ||
+                  field instanceof HTMLSelectElement ||
+                  field instanceof HTMLTextAreaElement
+                ) {
+                  if (field.name === 'phone')
+                    field.value = field.value.replace(/\D/g, '').slice(0, 10);
+                  validateField(event.currentTarget, field.name);
+                }
+              }}
+              onBlur={(event) => {
+                const field = event.target;
+                if (
+                  field instanceof HTMLInputElement ||
+                  field instanceof HTMLSelectElement ||
+                  field instanceof HTMLTextAreaElement
+                )
+                  validateField(event.currentTarget, field.name);
+              }}
+              aria-label="Register your interest"
+            >
               <h3>Let’s plan something meaningful.</h3>
               <p className="form-intro">
                 A few details to help us get to know your journey.
@@ -176,9 +229,9 @@ export function InterestForm() {
                   {
                     name: 'phone',
                     label: 'Phone / WhatsApp Number',
-                    autocomplete: 'tel',
+                    autocomplete: 'tel-national',
                     placeholder: '10-digit mobile number',
-                    max: 18,
+                    max: 10,
                   },
                   {
                     name: 'city',
@@ -199,6 +252,51 @@ export function InterestForm() {
                       id={f.name}
                       name={f.name}
                       type={f.name === 'phone' ? 'tel' : 'text'}
+                      inputMode={f.name === 'phone' ? 'numeric' : undefined}
+                      onKeyDown={
+                        f.name === 'phone'
+                          ? (event) => {
+                              if (
+                                !event.ctrlKey &&
+                                !event.metaKey &&
+                                !event.altKey &&
+                                event.key.length === 1 &&
+                                !/^[0-9]$/.test(event.key)
+                              )
+                                event.preventDefault();
+                            }
+                          : undefined
+                      }
+                      onPaste={
+                        f.name === 'phone'
+                          ? (event) => {
+                              event.preventDefault();
+                              const field = event.currentTarget;
+                              let digits = event.clipboardData
+                                .getData('text')
+                                .replace(/\D/g, '');
+                              if (
+                                digits.length === 12 &&
+                                digits.startsWith('91')
+                              )
+                                digits = digits.slice(2);
+                              const start =
+                                field.selectionStart ?? field.value.length;
+                              const end = field.selectionEnd ?? start;
+                              field.value = (
+                                field.value.slice(0, start) +
+                                digits +
+                                field.value.slice(end)
+                              ).slice(0, 10);
+                              field.setSelectionRange(
+                                Math.min(start + digits.length, 10),
+                                Math.min(start + digits.length, 10),
+                              );
+                              if (field.form)
+                                validateField(field.form, 'phone');
+                            }
+                          : undefined
+                      }
                       autoComplete={f.autocomplete}
                       required
                       minLength={f.name === 'phone' ? 10 : 2}
@@ -214,8 +312,6 @@ export function InterestForm() {
                 ))}
                 {select('travellers', 'Number of Travellers')}
                 {select('travellingWith', 'Travelling With')}
-                {select('destination', 'Preferred Destination')}
-                {select('budget', 'Comfortable Budget')}
                 <fieldset
                   className="full priorities"
                   aria-describedby={
@@ -255,7 +351,12 @@ export function InterestForm() {
                     rows={3}
                     maxLength={1000}
                     placeholder="Your preferences or any questions about the journey"
-                    aria-describedby="message-help"
+                    aria-invalid={!!errors.message}
+                    aria-describedby={
+                      errors.message
+                        ? 'message-help message-error'
+                        : 'message-help'
+                    }
                   />
                   <span id="message-help" className="fine-print">
                     Please avoid sharing medical records or sensitive health
@@ -278,6 +379,7 @@ export function InterestForm() {
                   type="checkbox"
                   name="consent"
                   required
+                  aria-invalid={!!errors.consent}
                   aria-describedby={
                     errors.consent ? 'consent-error' : undefined
                   }
@@ -303,11 +405,13 @@ export function InterestForm() {
                 </div>
               )}
               <button
-                disabled={pending}
+                disabled={!ready || pending}
                 className="button button-green submit-button"
                 type="submit"
               >
-                {pending ? (
+                {!ready ? (
+                  'Loading form…'
+                ) : pending ? (
                   <>
                     <LoaderCircle size={18} className="spinner" />
                     Submitting your interest…
