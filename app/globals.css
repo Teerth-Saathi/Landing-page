@@ -541,49 +541,14 @@ section[id] {
 .places svg {
   color: var(--orange);
 }
-.price-block {
+.journey-actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 15px;
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-  margin: 24px 0;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 24px;
 }
-.price-block > div > span {
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  color: var(--text);
-  font-weight: 700;
-}
-.price-block p {
-  font-size: 32px;
-  line-height: 1.4;
-  color: var(--green);
-  font-family: Georgia, serif;
-}
-.price-block p small {
-  font-size: 14px;
-  font-family: Arial, sans-serif;
-}
-.price-block > div > small {
-  font-size: 9px;
-  color: var(--text);
-}
-.limited {
-  display: flex;
-  gap: 6px;
-  font-size: 9px;
-  align-items: center;
-}
-.limited > span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--orange);
-}
-.journey-details > .text-link {
-  margin-left: 20px;
+.journey-details .text-link {
   font-size: 12px;
 }
 .why-section {

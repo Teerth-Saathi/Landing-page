@@ -68,7 +68,7 @@ export function Journey() {
               The final itinerary may change based on local conditions, temple
               timings and traveller comfort. No priority darshan is promised.
             </p>
-            <div className="price-block">
+            {/* <div className="price-block">
               <div>
                 <span>INDICATIVE LAUNCH PRICE</span>
                 <p>
@@ -80,13 +80,15 @@ export function Journey() {
                 <span />
                 Limited founding group
               </span>
+            </div> */}
+            <div className="journey-actions">
+              <a className="button button-green" href="#interest">
+                Join Founding Journey <ArrowUpRight size={18} />
+              </a>
+              <Link className="text-link" href="/journeys/mathura-vrindavan">
+                <MapPin size={15} /> Explore the journey
+              </Link>
             </div>
-            <a className="button button-green" href="#interest">
-              Join Founding Journey <ArrowUpRight size={18} />
-            </a>
-            <Link className="text-link" href="/journeys/mathura-vrindavan">
-              <MapPin size={15} /> Explore the journey
-            </Link>
           </div>
         </div>
       </div>
